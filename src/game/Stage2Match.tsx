@@ -115,7 +115,7 @@ export default function Stage2Match({ session: s0, stage, title, wrongNote, load
             <motion.button key={w.word.id} data-word={w.word.id}
               animate={flash?.ids[0] === w.word.id && !flash.ok ? { x: [0, -8, 8, -6, 6, 0] } : flash?.ids[0] === w.word.id ? { scale: [1, 1.08, 1] } : {}}
               onPointerDown={e => onPointerDown(e, w.word.id)}
-              className={`h-16 rounded-2xl px-2 text-xl font-bold shadow-sm ring-1 transition-colors ${cls(w.word.id, 'L')}`}>
+              className={`h-16 overflow-hidden rounded-2xl px-2 font-bold leading-tight shadow-sm ring-1 transition-colors ${w.word.word.length > 12 ? 'text-sm' : 'text-xl'} ${cls(w.word.id, 'L')}`}>
               {w.word.word}
             </motion.button>
           ))}
@@ -125,8 +125,8 @@ export default function Stage2Match({ session: s0, stage, title, wrongNote, load
             <motion.button key={w.word.id} data-meaning={w.word.id}
               animate={flash?.ids[1] === w.word.id && !flash.ok ? { x: [0, 8, -8, 6, -6, 0] } : {}}
               onClick={() => { if (selected && !line) tryMatch(selected, w.word.id) }}
-              className={`h-16 rounded-2xl px-2 text-base font-semibold leading-tight shadow-sm ring-1 transition-colors ${cls(w.word.id, 'R')}`}>
-              {meaningOf(w)}
+              className={`h-16 overflow-hidden rounded-2xl px-2 font-semibold leading-tight shadow-sm ring-1 transition-colors ${meaningOf(w).length > 14 ? 'text-xs' : 'text-base'} ${cls(w.word.id, 'R')}`}>
+              <span className="line-clamp-3">{meaningOf(w)}</span>
             </motion.button>
           ))}
         </div>

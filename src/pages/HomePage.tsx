@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import StatCard from '../components/StatCard'
 import { db } from '../db/database'
-import { loadAndInstall } from '../db/seed'
-import { getHomeStats, getWordbookWords, today, type HomeStats } from '../db/queries'
+import { ensureWordbook, loadIndex, type BookInfo } from '../db/seed'
+import { currentWordbookId, getHomeStats, getWordsByIds, setCurrentWordbookId, today, type HomeStats } from '../db/queries'
 import { getHistory, planToday, sessionId } from '../game/session'
 import type { LearningSession } from '../types/vocabulary'
 import { InstallButton } from '../pwa/PwaBar'
@@ -15,33 +15,63 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
   const [resume, setResume] = useState<'new' | 'resume' | 'done'>('new')
   const [plan, setPlan] = useState<{ total: number; review: number; fresh: number } | null>(null)
   const [history, setHistory] = useState<LearningSession[]>([])
+  const [books, setBooks] = useState<BookInfo[]>([])
+  const [bookId, setBookId] = useState(currentWordbookId())
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let alive = true
+    setLoading(true); setStats(null); setError(null); setPlan(null); setSample([]); setHistory([])
     ;(async () => {
-      const r = await loadAndInstall(db)
+      let idx: BookInfo[]
+      try { idx = await loadIndex() } catch (e) { if (alive) setError({ message: '단어장 목록을 읽지 못했습니다.', details: [String(e)] }); return }
+      if (!alive) return
+      setBooks(idx)
+      const info = idx.find(b => b.id === bookId) ?? idx[0]
+      if (info.id !== bookId) { setCurrentWordbookId(info.id); setBookId(info.id); return }
+      const r = await ensureWordbook(db, info)
       if (!alive) return
       if (!r.ok) { setError(r); return }
       setStats(await getHomeStats(db))
-      const list = await getWordbookWords(db)
+      const first = (await db.wordbookItems.where('wordbook_id').equals(info.id).sortBy('sort_order')).slice(0, 3).map(i => i.word_id)
+      const list = await getWordsByIds(db, first)
       const s = await db.learningSessions.get(sessionId(today()))
       setResume(s ? (s.status === 'in_progress' ? 'resume' : 'done') : 'new')
       if (s?.word_ids) { const rv = s.review_ids?.length ?? 0; setPlan({ total: s.word_ids.length, review: rv, fresh: s.word_ids.length - rv }) }
       else { const p = await planToday(db); setPlan({ total: p.word_ids.length, review: p.review.length, fresh: p.fresh.length }) }
       setHistory(await getHistory(db))
       setSample(list.slice(0, 3).map(x => `${x.word.word} – ${x.meanings[0]?.meaning ?? ''}`))
+      setLoading(false)
     })()
     return () => { alive = false }
-  }, [])
+  }, [bookId])
+
+  function choose(id: string) {
+    if (id === bookId || loading) return
+    setCurrentWordbookId(id); setBookId(id)
+  }
 
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col gap-6 bg-slate-50 px-5 py-10">
       <header className="text-center">
         <h1 className="text-3xl font-extrabold text-indigo-600">영단어 암기 게임</h1>
         <p className="mt-2 text-slate-500">
-          {stats ? `${stats.wordbookName} · ${stats.totalWords}단어` : error ? '' : '단어를 준비하고 있어요…'}
+          {stats ? `${stats.wordbookName} · ${stats.totalWords}단어` : error ? '' : '단어장을 준비하고 있어요… (처음 고를 때만 몇 초 걸려요)'}
         </p>
       </header>
+
+      {books.length > 1 && (
+        <nav className="-mt-2 flex gap-2" data-testid="book-picker" aria-label="단어장 고르기">
+          {books.map(b => (
+            <button key={b.id} data-testid={`book-${b.id}`} onClick={() => choose(b.id)} disabled={loading && b.id !== bookId}
+              aria-pressed={b.id === bookId}
+              className={`flex-1 rounded-2xl px-2 py-3 text-center ring-1 transition-colors ${b.id === bookId ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-slate-700 ring-slate-200'} disabled:opacity-50`}>
+              <span className="block text-lg font-bold">{b.category}</span>
+              <span className={`block text-xs ${b.id === bookId ? 'text-indigo-100' : 'text-slate-400'}`}>{b.words.toLocaleString()}단어</span>
+            </button>
+          ))}
+        </nav>
+      )}
 
       {error && (
         <div role="alert" className="rounded-2xl bg-red-50 p-4 text-sm text-red-700 ring-1 ring-red-200">
@@ -81,7 +111,7 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
 
       <button
         type="button"
-        disabled={!stats}
+        disabled={!stats || loading}
         onClick={onStart}
         className="mt-auto rounded-2xl bg-indigo-600 py-5 text-xl font-bold text-white shadow-lg active:scale-95 disabled:opacity-40"
       >

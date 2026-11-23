@@ -1,13 +1,13 @@
 import type { VocabularyDB } from '../db/database'
 import type { LearningProgress, LearningSession, Word, WordMeaning } from '../types/vocabulary'
-import { DEFAULT_WORDBOOK_ID, getWordbookWords, today } from '../db/queries'
+import { currentWordbookId, getWordsByIds, today } from '../db/queries'
 
 // 하루에 새로 학습할 단어 수(바꾸려면 이 숫자만 고치면 됨)
 export const TODAY_WORD_COUNT = 20
 
 export interface GameWord { word: Word; meanings: WordMeaning[] }
 
-export const sessionId = (date: string, wordbookId = DEFAULT_WORDBOOK_ID) => `S-${wordbookId}-${date}`
+export const sessionId = (date: string, wordbookId = currentWordbookId()) => `S-${wordbookId}-${date}`
 const progressId = (wordbookId: string, wordId: string) => `P-${wordbookId}-${wordId}`
 
 // 같은 날짜에는 항상 같은 순서가 나오는 섞기(새로고침해도 카드 순서 유지)
@@ -23,25 +23,30 @@ function seededShuffle<T>(arr: T[], seedText: string): T[] {
 // ---------- 6단계: 날짜별 오늘 단어 정하기 ----------
 // 복습 단어 = 오늘 이전에 공부했고(2단계로 넘어간 단어) 아직 '아는 단어'가 아닌 단어
 // 새 단어 = 한 번도 공부하지 않은 단어 중 단어장의 정해진 순서로 앞의 N개
-export async function planToday(db: VocabularyDB, wordbookId = DEFAULT_WORDBOOK_ID, date = today()) {
-  const all = await getWordbookWords(db, wordbookId)
+export async function planToday(db: VocabularyDB, wordbookId = currentWordbookId(), date = today()) {
+  const all = await bookWordIds(db, wordbookId)
   const progress = await db.learningProgress.where('wordbook_id').equals(wordbookId).toArray()
   const seen = new Set(progress.map(p => p.word_id))
   const review = progress.filter(p => !p.known && p.last_studied_at && p.last_studied_at < date).map(p => p.word_id)
-  const fresh = seededShuffle(all, `NEW-${wordbookId}`).filter(w => !seen.has(w.word.id)).slice(0, TODAY_WORD_COUNT).map(w => w.word.id)
+  const fresh = seededShuffle(all, `NEW-${wordbookId}`).filter(id => !seen.has(id)).slice(0, TODAY_WORD_COUNT)
   return { review, fresh, word_ids: seededShuffle([...review, ...fresh], sessionId(date, wordbookId)) }
+}
+
+// 단어장의 단어 ID(단어장 순서)
+async function bookWordIds(db: VocabularyDB, wordbookId: string) {
+  return (await db.wordbookItems.where('wordbook_id').equals(wordbookId).sortBy('sort_order')).map(i => i.word_id)
 }
 
 // 6단계 전에 만든 세션(단어 목록 저장 안 됨)용 예전 방식
 async function legacyWordIds(db: VocabularyDB, wordbookId: string, date: string) {
-  const all = await getWordbookWords(db, wordbookId)
+  const all = await bookWordIds(db, wordbookId)
   const progress = await db.learningProgress.where('wordbook_id').equals(wordbookId).toArray()
   const knownBefore = new Set(progress.filter(p => p.known && p.last_studied_at !== date).map(p => p.word_id))
-  return seededShuffle(all, sessionId(date, wordbookId)).filter(w => !knownBefore.has(w.word.id)).slice(0, TODAY_WORD_COUNT).map(w => w.word.id)
+  return seededShuffle(all, sessionId(date, wordbookId)).filter(id => !knownBefore.has(id)).slice(0, TODAY_WORD_COUNT)
 }
 
 // 오늘 세션 가져오기(없으면 오늘 단어를 정해 새로 만듦 → 하루 동안 같은 단어·같은 순서)
-export async function getOrCreateSession(db: VocabularyDB, wordbookId = DEFAULT_WORDBOOK_ID): Promise<LearningSession> {
+export async function getOrCreateSession(db: VocabularyDB, wordbookId = currentWordbookId()): Promise<LearningSession> {
   const date = today()
   const id = sessionId(date, wordbookId)
   const found = await db.learningSessions.get(id)
@@ -55,13 +60,11 @@ export async function getOrCreateSession(db: VocabularyDB, wordbookId = DEFAULT_
 
 // 세션에 저장된 단어 목록 → 단어+뜻
 export async function getSessionWords(db: VocabularyDB, session: LearningSession): Promise<GameWord[]> {
-  const all = await getWordbookWords(db, session.wordbook_id)
-  const byId = new Map(all.map(w => [w.word.id, w]))
-  return (session.word_ids ?? []).map(id => byId.get(id)).filter((w): w is GameWord => !!w)
+  return getWordsByIds(db, session.word_ids ?? [])
 }
 
 // 오늘 1단계 카드 목록
-export async function getTodayWords(db: VocabularyDB, wordbookId = DEFAULT_WORDBOOK_ID): Promise<GameWord[]> {
+export async function getTodayWords(db: VocabularyDB, wordbookId = currentWordbookId()): Promise<GameWord[]> {
   return getSessionWords(db, await getOrCreateSession(db, wordbookId))
 }
 
@@ -90,7 +93,7 @@ export async function restoreWord(db: VocabularyDB, wordbookId: string, wordId: 
 }
 
 // 오늘 휴지통(아는 단어로 넣은 단어) 목록
-export async function getTodayTrash(db: VocabularyDB, words: GameWord[], wordbookId = DEFAULT_WORDBOOK_ID, date = today()): Promise<GameWord[]> {
+export async function getTodayTrash(db: VocabularyDB, words: GameWord[], wordbookId = currentWordbookId(), date = today()): Promise<GameWord[]> {
   const ids = new Set((await db.learningProgress.where('wordbook_id').equals(wordbookId).toArray()).filter(p => p.known && p.last_studied_at === date).map(p => p.word_id))
   return words.filter(w => ids.has(w.word.id))
 }
@@ -164,7 +167,7 @@ export async function completeSession(db: VocabularyDB, session: LearningSession
 }
 
 // 날짜별 학습 기록(최근 날짜부터)
-export async function getHistory(db: VocabularyDB, wordbookId = DEFAULT_WORDBOOK_ID) {
+export async function getHistory(db: VocabularyDB, wordbookId = currentWordbookId()) {
   return (await db.learningSessions.where('[wordbook_id+session_date]').between([wordbookId, ''], [wordbookId, '\uffff']).toArray()).reverse()
 }
 

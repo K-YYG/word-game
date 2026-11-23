@@ -33,7 +33,7 @@ export default function ResultPage({ session, onHome }: { session: LearningSessi
         : <ul className="mt-2 grid grid-cols-2 gap-2" data-testid="weak-list">
             {r.weakWords.map(w => <li key={w.word.id} className="rounded-xl bg-rose-50 px-3 py-2 text-sm"><b className="text-rose-600">{w.word.word}</b> <span className="text-slate-500">{w.meanings[0]?.meaning}</span></li>)}
           </ul>}
-      <p className="mt-4 text-xs text-slate-400">연결 게임까지 온 단어는 내일 복습 후보가 됩니다(복습 규칙은 6단계 개발에서 적용).</p>
+      <p className="mt-4 text-xs text-slate-400">휴지통에 넣지 않은 단어는 다음에 학습할 때 복습 단어로 다시 나와요.</p>
       <button onClick={onHome} className="mt-6 rounded-xl bg-indigo-600 py-3 font-bold text-white">홈으로</button>
     </main>
   )

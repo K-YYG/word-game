@@ -70,10 +70,10 @@ export default function Stage3OX({ session: s0, onHome, onDone }: { session: Lea
           <motion.div key={current.word.id} data-testid="ox-card"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
             className="flex h-64 w-full flex-col items-center justify-center gap-5 rounded-3xl bg-white shadow-md ring-1 ring-slate-200">
-            <p className="text-4xl font-extrabold text-slate-800">{current.word.word}</p>
-            <div className="h-10">
+            <p className={`px-4 text-center font-extrabold leading-tight text-slate-800 ${current.word.word.length > 14 ? 'text-2xl' : 'text-4xl'}`}>{current.word.word}</p>
+            <div className="flex min-h-10 items-center">
               {reveal
-                ? <motion.p data-testid="ox-meaning" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-2xl font-semibold text-indigo-600">{current.meanings[0]?.meaning}</motion.p>
+                ? <motion.p data-testid="ox-meaning" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`px-4 text-center font-semibold leading-snug text-indigo-600 ${(current.meanings[0]?.meaning ?? '').length > 14 ? 'text-lg' : 'text-2xl'}`}>{current.meanings[0]?.meaning}</motion.p>
                 : <p className="text-slate-300">뜻을 떠올려 보세요…</p>}
             </div>
           </motion.div>

@@ -121,7 +121,7 @@ function Card({ text, review, onKnown, onNext, onOver }: { text: string; review:
       onDrag={onDrag} onDragEnd={onDragEnd}
       initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
       variants={variants} exit="exit"
-      className="relative flex h-64 w-full max-w-xs cursor-grab touch-none items-center justify-center rounded-3xl bg-white text-5xl font-extrabold text-slate-800 shadow-xl ring-1 ring-slate-200 active:cursor-grabbing"
+      className={`relative flex h-64 w-full max-w-xs cursor-grab touch-none items-center justify-center break-words rounded-3xl bg-white px-5 text-center font-extrabold leading-tight text-slate-800 shadow-xl ring-1 ring-slate-200 active:cursor-grabbing ${text.length > 18 ? 'text-2xl' : text.length > 10 ? 'text-3xl' : 'text-5xl'}`}
     >
       {review && <span data-testid="review-badge" className="absolute left-4 top-4 rounded-full bg-amber-100 px-3 py-1 text-sm font-bold text-amber-700">복습</span>}
       {text}

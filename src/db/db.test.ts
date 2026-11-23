@@ -1,27 +1,30 @@
-// 2단계 DB 시험(작업 공간용): npm run test:db
+// DB 시험(작업 공간용): npm run test:db
 import 'fake-indexeddb/auto'
 import { readFileSync } from 'node:fs'
 import { VocabularyDB } from './database'
-import { installDefaultData } from './seed'
-import { getWordbookWords, getHomeStats } from './queries'
+import { expandWordbook, installWordbook } from './seed'
+import { getWordbookWords } from './queries'
 import { validateVocabulary } from './validate'
 
-const data = JSON.parse(readFileSync('public/data/vocabulary.json', 'utf8'))
+const index = JSON.parse(readFileSync('public/data/wordbooks.json', 'utf8')).books
+const file = (f: string) => JSON.parse(readFileSync('public/' + f, 'utf8'))
 const db = new VocabularyDB('test-db')
-const r1 = await installDefaultData(db, data)
-// 학습 기록 하나를 넣은 뒤 다시 설치 → 단어·기록이 그대로여야 함
-await db.learningProgress.add({ id: 'P1', wordbook_id: 'B0001', word_id: 'W000001', known: true, correct_count: 0, wrong_count: 0, last_stage: 1, last_studied_at: '2026-11-22', updated_at: '2026-11-22' })
-db.close(); const db2 = new VocabularyDB('test-db')  // 앱 다시 실행
-const r2 = await installDefaultData(db2, data)
-const list = await getWordbookWords(db2)
-const bad = structuredClone(data); bad.word_meanings[0].word_id = 'W999999'
-const out = {
-  firstInstall: r1, secondRun: r2,
-  counts: { words: await db2.words.count(), meanings: await db2.wordMeanings.count(), wordbooks: await db2.wordbooks.count(), items: await db2.wordbookItems.count(), progress: await db2.learningProgress.count() },
-  allWordsHaveMeaning: list.length === 100 && list.every(x => x.meanings.length > 0),
-  first3: list.slice(0, 3).map(x => `${x.word.id} ${x.word.word} = ${x.meanings.map(m => m.part_of_speech + ' ' + m.meaning).join(' / ')}`),
-  stats: await getHomeStats(db2),
-  brokenDataErrors: validateVocabulary(bad),
-  brokenDataInstall: await installDefaultData(new VocabularyDB('broken-db'), bad),
+const out: Record<string, unknown> = {}
+// 예전 초등 100 설치 + 학습 기록 → 새 초등 900으로 바꿔도 기록과 단어 ID가 그대로인지
+const old = JSON.parse(readFileSync(process.env.OLD_VOCAB ?? '/tmp/v2/old_vocabulary.json', 'utf8'))
+out.old = await installWordbook(db, old)
+await db.learningProgress.add({ id: 'P-B0001-W000001', wordbook_id: 'B0001', word_id: 'W000001', known: true, correct_count: 2, wrong_count: 1, last_stage: 2, last_studied_at: '2026-11-22', updated_at: '2026-11-22' })
+for (const b of index.filter((x: { id: string }) => process.env.FULL || x.id !== 'B0003')) {
+  const data = file(b.file)
+  out[b.id + ' 검사 오류'] = validateVocabulary(expandWordbook(data)).length
+  out[b.id + ' 설치'] = await installWordbook(db, data)
+  out[b.id + ' 다시 설치(같은 버전)'] = (await installWordbook(db, data) as { installed: boolean }).installed
+  const list = await getWordbookWords(db, b.id)
+  out[b.id + ' 단어'] = [list.length, b.words, list.every(x => x.meanings.length > 0)]
 }
+const w1 = await db.words.get('W000001')
+out['기존 W000001'] = w1?.word
+out['학습 기록 유지'] = !!(await db.learningProgress.get('P-B0001-W000001'))
+out['초등 옛 목록 남음'] = await db.wordbookItems.where('wordbook_id').equals('B0001').count()
+out['전체 단어'] = await db.words.count()
 console.log(JSON.stringify(out, null, 1))
