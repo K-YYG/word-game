@@ -61,14 +61,14 @@ export default function ResultPage({ session, onHome, onNextRound }: { session: 
   )
 }
 
-// 예문 한 줄: 자료 문장이면 [자료], AI가 만든 문장이면 [AI 생성] 표시. 해석이 아직 없으면 '해석 준비 중'
+// 예문 한 줄: 자료 문장이면 [자료] 표시(AI가 만든 문장은 표시 없음). 해석이 아직 없으면 '해석 준비 중'
 function ExampleLine({ e, loading }: { e?: Example; loading: boolean }) {
   if (loading) return <p className="mt-1 text-sm text-slate-300">예문 불러오는 중…</p>
   if (!e) return <p className="mt-1 text-sm text-slate-300" data-testid="no-example">예문 준비 중</p>
   return (
     <div className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2" data-testid="example">
       <p className="text-[15px] text-slate-800">{e.en}
-        <span className={`ml-2 rounded px-1.5 py-0.5 align-middle text-[10px] font-bold ${e.ai ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700'}`}>{e.ai ? 'AI 생성' : '자료'}</span>
+        {!e.ai && <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 align-middle text-[10px] font-bold text-emerald-700">자료</span>}
       </p>
       <p className="text-sm text-slate-500">{e.ko || '해석 준비 중'}</p>
     </div>
