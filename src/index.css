@@ -2,3 +2,8 @@
 
 html, body, #root { height: 100%; }
 body { margin: 0; font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
+
+/* PC 버전(화면 폭 1024px 이상): 넓게 */
+html.pc .max-w-md { max-width: 52rem; }
+html.pc body { font-size: 17px; }
+body { background: #f8fafc; }

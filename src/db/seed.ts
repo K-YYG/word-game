@@ -7,7 +7,7 @@ export type SeedResult =
   | { ok: false; message: string; details: string[] };
 
 // 단어장 목록(public/data/wordbooks.json) 한 줄
-export interface BookInfo { id: string; name: string; category: string; file: string; words: number; version: string; description: string }
+export interface BookInfo { id: string; name: string; category: string; file: string; words: number; version: string; description: string; examples?: string }
 
 const BASE = import.meta.env?.BASE_URL ?? '/';
 
@@ -44,8 +44,10 @@ export async function installWordbook(db: VocabularyDB, raw: unknown): Promise<S
         if (old && old.version === book.version) continue;
         const items = v.wordbook_items.filter(i => i.wordbook_id === book.id);
         const ids = new Set(items.map(i => i.word_id));
+        // 예전 목록의 단어 뜻도 함께 지움(새 버전에서 빠진 단어의 뜻이 남지 않게)
+        const oldIds = (await db.wordbookItems.where('wordbook_id').equals(book.id).toArray()).map(i => i.word_id);
         await db.wordbookItems.where('wordbook_id').equals(book.id).delete();
-        await db.wordMeanings.where('word_id').anyOf([...ids]).delete();
+        await db.wordMeanings.where('word_id').anyOf([...new Set([...ids, ...oldIds])]).delete();
         await db.words.bulkPut(v.words.filter(w => ids.has(w.id)));
         await db.wordMeanings.bulkPut(v.word_meanings.filter(m => ids.has(m.word_id)));
         await db.wordbookItems.bulkPut(items);
@@ -84,4 +86,25 @@ export async function ensureWordbook(db: VocabularyDB, info: BookInfo): Promise<
     return { ok: false, message: `단어장 파일(${info.file})을 읽지 못했습니다.`, details: [String(e)] };
   }
   return installWordbook(db, data);
+}
+
+// 예문 파일(ex-1): e = { 단어ID: [영어 문장, 한국어 해석, 'M'(자료 문장) | 'A'(AI 생성)] }
+export interface Example { en: string; ko: string; ai: boolean }
+const exCache = new Map<string, Promise<Map<string, Example>>>();
+export function loadExamples(bookId: string): Promise<Map<string, Example>> {
+  let p = exCache.get(bookId);
+  if (!p) {
+    p = loadIndex()
+      .then(books => books.find(b => b.id === bookId)?.examples)
+      .then(async file => {
+        if (!file) return new Map<string, Example>();
+        const res = await fetch(`${BASE}${file}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const e = (await res.json()).e as Record<string, [string, string, string]>;
+        return new Map(Object.entries(e).map(([id, [en, ko, s]]) => [id, { en, ko, ai: s === 'A' }]));
+      })
+      .catch(() => { exCache.delete(bookId); return new Map<string, Example>(); });
+    exCache.set(bookId, p);
+  }
+  return p;
 }

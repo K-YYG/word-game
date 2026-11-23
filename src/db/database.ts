@@ -28,4 +28,13 @@ export class VocabularyDB extends Dexie {
   }
 }
 
-export const db = new VocabularyDB();
+export const DEFAULT_DB_NAME = 'VocabularyGameDB';
+
+// 지금 쓰는 DB. PC에서 사람을 바꾸면 그 사람 DB로 바뀐다(다른 파일들은 부를 때마다 이 값을 읽음)
+export let db = new VocabularyDB(DEFAULT_DB_NAME);
+export function switchDatabase(name: string) {
+  if (db.name === name) return db;
+  db.close();
+  db = new VocabularyDB(name);
+  return db;
+}

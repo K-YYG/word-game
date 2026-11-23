@@ -1,15 +1,16 @@
 import type { VocabularyDB } from './database';
 import type { Word, WordMeaning } from '../types/vocabulary';
+import { storageSuffix } from './profile';
 
 export const DEFAULT_WORDBOOK_ID = 'B0001';
 
 // 지금 고른 단어장(이 기기에 기억). 저장 공간을 못 쓰는 환경이면 기본 단어장
 const KEY = 'wordgame.wordbook';
 export function currentWordbookId(): string {
-  try { return localStorage.getItem(KEY) || DEFAULT_WORDBOOK_ID; } catch { return DEFAULT_WORDBOOK_ID; }
+  try { return localStorage.getItem(KEY + storageSuffix()) || DEFAULT_WORDBOOK_ID; } catch { return DEFAULT_WORDBOOK_ID; }
 }
 export function setCurrentWordbookId(id: string) {
-  try { localStorage.setItem(KEY, id); } catch { /* 기억 못 해도 동작에는 문제 없음 */ }
+  try { localStorage.setItem(KEY + storageSuffix(), id); } catch { /* 기억 못 해도 동작에는 문제 없음 */ }
 }
 
 // 기기 현지 날짜 YYYY-MM-DD

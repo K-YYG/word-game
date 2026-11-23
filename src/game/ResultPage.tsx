@@ -3,6 +3,10 @@ import { motion } from 'framer-motion'
 import { db } from '../db/database'
 import type { LearningSession } from '../types/vocabulary'
 import { getSessionResult, MAX_ROUNDS_PER_DAY } from './session'
+import { loadExamples, type Example } from '../db/seed'
+import { isPC } from '../db/profile'
+
+const SHOW_EXAMPLES = isPC()
 
 type Result = Awaited<ReturnType<typeof getSessionResult>>
 
@@ -11,7 +15,10 @@ export default function ResultPage({ session, onHome, onNextRound }: { session: 
   const round = session.round ?? 1
   const last = round >= MAX_ROUNDS_PER_DAY
   const [r, setR] = useState<Result | null>(null)
+  const [ex, setEx] = useState<Map<string, Example> | null>(null)
   useEffect(() => { getSessionResult(db, session).then(setR) }, [session])
+  // PC 버전: 틀린 단어마다 예문(영어 + 해석)을 함께 보여 줌
+  useEffect(() => { if (SHOW_EXAMPLES) loadExamples(session.wordbook_id).then(setEx) }, [session])
   if (!r) return <p className="p-10 text-center text-slate-500">불러오는 중…</p>
   const rate = r.studied ? Math.round((r.firstTry / r.studied) * 100) : 100
   const rows: [string, string | number][] = [
@@ -36,6 +43,7 @@ export default function ResultPage({ session, onHome, onNextRound }: { session: 
             {r.wrongWords.map(({ w, s2, x3, s4 }) => (
               <li key={w.word.id} className="rounded-xl bg-white px-3 py-2 shadow-sm ring-1 ring-rose-100">
                 <div className="flex items-baseline gap-2"><b className="text-rose-600">{w.word.word}</b><span className="text-sm text-slate-600">{w.meanings[0]?.meaning}</span></div>
+                {SHOW_EXAMPLES && <ExampleLine e={ex?.get(w.word.id)} loading={!ex} />}
                 <div className="mt-1 flex flex-wrap gap-1 text-[11px] font-semibold">
                   {s2 > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">연결 {s2}번</span>}
                   {x3 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-rose-700">O/X에서 X</span>}
@@ -50,5 +58,19 @@ export default function ResultPage({ session, onHome, onNextRound }: { session: 
         : onNextRound && <button onClick={onNextRound} data-testid="next-round" className="mt-6 rounded-xl bg-indigo-600 py-3 font-bold text-white">{round + 1}회차 시작 →</button>}
       <button onClick={onHome} className={`mt-3 rounded-xl py-3 font-bold ${last ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 ring-1 ring-slate-200'}`}>홈으로</button>
     </main>
+  )
+}
+
+// 예문 한 줄: 자료 문장이면 [자료], AI가 만든 문장이면 [AI 생성] 표시. 해석이 아직 없으면 '해석 준비 중'
+function ExampleLine({ e, loading }: { e?: Example; loading: boolean }) {
+  if (loading) return <p className="mt-1 text-sm text-slate-300">예문 불러오는 중…</p>
+  if (!e) return <p className="mt-1 text-sm text-slate-300" data-testid="no-example">예문 준비 중</p>
+  return (
+    <div className="mt-1.5 rounded-lg bg-slate-50 px-3 py-2" data-testid="example">
+      <p className="text-[15px] text-slate-800">{e.en}
+        <span className={`ml-2 rounded px-1.5 py-0.5 align-middle text-[10px] font-bold ${e.ai ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700'}`}>{e.ai ? 'AI 생성' : '자료'}</span>
+      </p>
+      <p className="text-sm text-slate-500">{e.ko || '해석 준비 중'}</p>
+    </div>
   )
 }
