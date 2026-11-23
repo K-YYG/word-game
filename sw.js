@@ -1,5 +1,5 @@
 // 영단어 암기 게임 – 오프라인용 서비스 워커 (빌드할 때 vite.config.ts가 sw.js로 만듦)
-const CACHE = 'word-game-7579eac822ac'
+const CACHE = 'word-game-ed597ec7c8b3'
 const FILES = [
   "./",
   "./assets/index-B19toyt-.css",
