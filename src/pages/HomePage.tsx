@@ -3,7 +3,7 @@ import StatCard from '../components/StatCard'
 import { db } from '../db/database'
 import { ensureWordbook, loadIndex, type BookInfo } from '../db/seed'
 import { currentWordbookId, getHomeStats, getWordsByIds, setCurrentWordbookId, today, type HomeStats } from '../db/queries'
-import { getHistory, planToday, sessionId } from '../game/session'
+import { getHistory, getTodayState, MAX_ROUNDS_PER_DAY, planToday, startNextRound, WORDS_PER_ROUND } from '../game/session'
 import type { LearningSession } from '../types/vocabulary'
 import { InstallButton } from '../pwa/PwaBar'
 
@@ -12,8 +12,9 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
   const [stats, setStats] = useState<HomeStats | null>(null)
   const [error, setError] = useState<{ message: string; details: string[] } | null>(null)
   const [sample, setSample] = useState<string[]>([])
-  const [resume, setResume] = useState<'new' | 'resume' | 'done'>('new')
-  const [plan, setPlan] = useState<{ total: number; review: number; fresh: number } | null>(null)
+  const [resume, setResume] = useState<'new' | 'resume' | 'next' | 'done'>('new')
+  const [round, setRound] = useState(1)
+  const [plan, setPlan] = useState<{ total: number; review: number; fresh: number; waiting: number } | null>(null)
   const [history, setHistory] = useState<LearningSession[]>([])
   const [books, setBooks] = useState<BookInfo[]>([])
   const [bookId, setBookId] = useState(currentWordbookId())
@@ -35,10 +36,13 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
       setStats(await getHomeStats(db))
       const first = (await db.wordbookItems.where('wordbook_id').equals(info.id).sortBy('sort_order')).slice(0, 3).map(i => i.word_id)
       const list = await getWordsByIds(db, first)
-      const s = await db.learningSessions.get(sessionId(today()))
-      setResume(s ? (s.status === 'in_progress' ? 'resume' : 'done') : 'new')
-      if (s?.word_ids) { const rv = s.review_ids?.length ?? 0; setPlan({ total: s.word_ids.length, review: rv, fresh: s.word_ids.length - rv }) }
-      else { const p = await planToday(db); setPlan({ total: p.word_ids.length, review: p.review.length, fresh: p.fresh.length }) }
+      const st = await getTodayState(db)
+      const s = st.last
+      setResume(!s ? 'new' : s.status === 'in_progress' ? 'resume' : st.canStartNext ? 'next' : 'done')
+      setRound(!s ? 1 : s.status === 'in_progress' ? st.round : st.canStartNext ? st.round + 1 : st.round)
+      if (s && s.status === 'in_progress' && s.word_ids) { const rv = s.review_ids?.length ?? 0; setPlan({ total: s.word_ids.length, review: rv, fresh: s.word_ids.length - rv, waiting: 0 }) }
+      else if (!s || st.canStartNext) { const p = await planToday(db, info.id, today(), st.round + 1, st.rounds.flatMap(r => r.word_ids ?? [])); setPlan({ total: p.word_ids.length, review: p.review.length, fresh: p.fresh.length, waiting: p.waiting }) }
+      else setPlan(null)
       setHistory(await getHistory(db))
       setSample(list.slice(0, 3).map(x => `${x.word.word} – ${x.meanings[0]?.meaning ?? ''}`))
       setLoading(false)
@@ -81,21 +85,25 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
       )}
 
       <section className="grid grid-cols-2 gap-3">
-        <StatCard label="오늘의 학습 단어" value={plan?.total ?? 0} />
+        <StatCard label={`${round}회차 학습 단어`} value={plan?.total ?? 0} />
         <StatCard label="아는 단어" value={stats?.knownWords ?? 0} />
-        <StatCard label="오늘 복습 단어" value={plan?.review ?? 0} />
-        <StatCard label="마지막 학습" value={stats?.lastDate ?? '-'} />
+        <StatCard label="그중 복습 단어" value={plan?.review ?? 0} />
+        <StatCard label="마지막 학습" value={stats?.lastDate ? stats.lastDate.slice(5) : '-'} />
       </section>
 
-      {plan && <p className="-mt-3 text-center text-sm text-slate-500" data-testid="plan">오늘: 복습 {plan.review}개 + 새 단어 {plan.fresh}개 (섞어서 나와요)</p>}
+      <p className="-mt-3 text-center text-sm text-slate-500" data-testid="plan">
+        {resume === 'done'
+          ? `오늘 ${MAX_ROUNDS_PER_DAY}회 학습을 모두 마쳤어요. 내일 또 만나요!`
+          : plan && <>{round}회차: 복습 {plan.review}개 + 새 단어 {plan.fresh}개 (한 번에 {WORDS_PER_ROUND}개 · 하루 {MAX_ROUNDS_PER_DAY}회){plan.waiting > plan.review && <span className="block text-xs text-amber-600">밀린 복습 단어 {plan.waiting}개 – 틀린 횟수가 많은 단어부터 나와요</span>}</>}
+      </p>
 
       {history.length > 0 && (
         <section data-testid="history">
           <h2 className="mb-2 font-bold text-slate-700">날짜별 학습 기록</h2>
           <ul className="divide-y divide-slate-100 rounded-2xl bg-white text-sm shadow-sm ring-1 ring-slate-200">
-            {history.slice(0, 14).map(h => (
+            {history.slice(0, 20).map(h => (
               <li key={h.id} className="flex items-center justify-between px-4 py-3">
-                <span className="font-semibold text-slate-700">{h.session_date}</span>
+                <span className="font-semibold text-slate-700">{h.session_date.slice(5)} <span className="text-indigo-500">{h.round ?? 1}회</span></span>
                 {h.summary
                   ? <span className="text-slate-500">{h.summary.total}단어 · 복습 {h.summary.review} · 한 번에 {h.summary.studied ? Math.round(h.summary.firstTry / h.summary.studied * 100) : 100}% · 취약 {h.summary.weak_ids.length}</span>
                   : <span className="text-amber-600">{h.status === 'completed' ? '완료' : `진행 중 (${Math.min(h.current_stage, 4)}단계)`}</span>}
@@ -112,10 +120,10 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
       <button
         type="button"
         disabled={!stats || loading}
-        onClick={onStart}
+        onClick={async () => { if (resume === 'next') await startNextRound(db, bookId); onStart() }}
         className="mt-auto rounded-2xl bg-indigo-600 py-5 text-xl font-bold text-white shadow-lg active:scale-95 disabled:opacity-40"
       >
-        {resume === 'resume' ? '이어서 학습' : resume === 'done' ? '오늘 결과 보기' : '학습 시작'}
+        {resume === 'resume' ? `이어서 학습 (${round}회차)` : resume === 'next' ? `${round}회차 시작` : resume === 'done' ? '오늘 학습 끝 · 결과 보기' : '학습 시작'}
       </button>
       <InstallButton />
     </main>

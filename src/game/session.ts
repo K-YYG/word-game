@@ -2,12 +2,15 @@ import type { VocabularyDB } from '../db/database'
 import type { LearningProgress, LearningSession, Word, WordMeaning } from '../types/vocabulary'
 import { currentWordbookId, getWordsByIds, today } from '../db/queries'
 
-// 하루에 새로 학습할 단어 수(바꾸려면 이 숫자만 고치면 됨)
-export const TODAY_WORD_COUNT = 20
+// 학습 1회에 나오는 단어 수 · 하루 최대 횟수(사용자 결정 11-23 21:01 "가": 복습 먼저 채우고 남는 자리에 새 단어)
+export const WORDS_PER_ROUND = 50
+export const MAX_ROUNDS_PER_DAY = 2
+export const TODAY_WORD_COUNT = WORDS_PER_ROUND
 
 export interface GameWord { word: Word; meanings: WordMeaning[] }
 
-export const sessionId = (date: string, wordbookId = currentWordbookId()) => `S-${wordbookId}-${date}`
+// 1회차는 예전과 같은 ID(이어하기 호환), 2회차부터 끝에 -2
+export const sessionId = (date: string, wordbookId = currentWordbookId(), round = 1) => `S-${wordbookId}-${date}${round > 1 ? `-${round}` : ''}`
 const progressId = (wordbookId: string, wordId: string) => `P-${wordbookId}-${wordId}`
 
 // 같은 날짜에는 항상 같은 순서가 나오는 섞기(새로고침해도 카드 순서 유지)
@@ -20,16 +23,22 @@ function seededShuffle<T>(arr: T[], seedText: string): T[] {
   return a
 }
 
-// ---------- 6단계: 날짜별 오늘 단어 정하기 ----------
-// 복습 단어 = 오늘 이전에 공부했고(2단계로 넘어간 단어) 아직 '아는 단어'가 아닌 단어
-// 새 단어 = 한 번도 공부하지 않은 단어 중 단어장의 정해진 순서로 앞의 N개
-export async function planToday(db: VocabularyDB, wordbookId = currentWordbookId(), date = today()) {
+// ---------- 날짜별·회차별 단어 정하기 ----------
+// 한 회에 50개: 복습 단어를 먼저 채우고(틀린 횟수 많은 순 → 오래전에 본 순), 남는 자리에 새 단어
+// 복습 단어 = 오늘 이전에 공부했고 아직 '아는 단어'가 아닌 단어
+// 새 단어 = 한 번도 공부하지 않은 단어(단어장의 정해진 순서)
+// exclude = 오늘 앞 회차에 나온 단어(같은 날 다시 나오지 않게)
+export async function planToday(db: VocabularyDB, wordbookId = currentWordbookId(), date = today(), round = 1, exclude: string[] = []) {
   const all = await bookWordIds(db, wordbookId)
   const progress = await db.learningProgress.where('wordbook_id').equals(wordbookId).toArray()
-  const seen = new Set(progress.map(p => p.word_id))
-  const review = progress.filter(p => !p.known && p.last_studied_at && p.last_studied_at < date).map(p => p.word_id)
-  const fresh = seededShuffle(all, `NEW-${wordbookId}`).filter(id => !seen.has(id)).slice(0, TODAY_WORD_COUNT)
-  return { review, fresh, word_ids: seededShuffle([...review, ...fresh], sessionId(date, wordbookId)) }
+  const seen = new Set(progress.map(p => p.word_id)); const ex = new Set(exclude)
+  const review = progress
+    .filter(p => !p.known && p.last_studied_at && p.last_studied_at < date && !ex.has(p.word_id))
+    .sort((a, b) => (b.wrong_count - a.wrong_count) || (a.last_studied_at ?? '').localeCompare(b.last_studied_at ?? '') || a.word_id.localeCompare(b.word_id))
+    .slice(0, WORDS_PER_ROUND).map(p => p.word_id)
+  const fresh = seededShuffle(all, `NEW-${wordbookId}`).filter(id => !seen.has(id) && !ex.has(id)).slice(0, WORDS_PER_ROUND - review.length)
+  const waiting = progress.filter(p => !p.known && p.last_studied_at && p.last_studied_at < date && !ex.has(p.word_id)).length
+  return { review, fresh, waiting, word_ids: seededShuffle([...review, ...fresh], sessionId(date, wordbookId, round)) }
 }
 
 // 단어장의 단어 ID(단어장 순서)
@@ -45,17 +54,40 @@ async function legacyWordIds(db: VocabularyDB, wordbookId: string, date: string)
   return seededShuffle(all, sessionId(date, wordbookId)).filter(id => !knownBefore.has(id)).slice(0, TODAY_WORD_COUNT)
 }
 
-// 오늘 세션 가져오기(없으면 오늘 단어를 정해 새로 만듦 → 하루 동안 같은 단어·같은 순서)
-export async function getOrCreateSession(db: VocabularyDB, wordbookId = currentWordbookId()): Promise<LearningSession> {
+// 오늘의 학습 상태: 지금 할(또는 마지막) 회차, 다음 회차를 시작할 수 있는지
+export async function getTodayState(db: VocabularyDB, wordbookId = currentWordbookId()) {
+  const date = today(); const rounds: LearningSession[] = []
+  for (let r = 1; r <= MAX_ROUNDS_PER_DAY; r++) { const s = await db.learningSessions.get(sessionId(date, wordbookId, r)); if (s) rounds.push(s) }
+  const last = rounds[rounds.length - 1] ?? null
+  const canStartNext = !!last && last.status === 'completed' && rounds.length < MAX_ROUNDS_PER_DAY
+  return { rounds, last, round: last ? (last.round ?? rounds.length) : 0, canStartNext, allDone: !!last && last.status === 'completed' && rounds.length >= MAX_ROUNDS_PER_DAY }
+}
+
+async function createRound(db: VocabularyDB, wordbookId: string, round: number, exclude: string[]): Promise<LearningSession> {
   const date = today()
-  const id = sessionId(date, wordbookId)
-  const found = await db.learningSessions.get(id)
-  if (found?.word_ids) return found
-  if (found) { const s = { ...found, word_ids: await legacyWordIds(db, wordbookId, date), review_ids: [] }; await db.learningSessions.put(s); return s }
-  const plan = await planToday(db, wordbookId, date)
-  const s: LearningSession = { id, wordbook_id: wordbookId, session_date: date, status: 'in_progress', started_at: new Date().toISOString(), completed_at: null, current_stage: 1, current_index: 0, word_ids: plan.word_ids, review_ids: plan.review }
+  const plan = await planToday(db, wordbookId, date, round, exclude)
+  const s: LearningSession = { id: sessionId(date, wordbookId, round), wordbook_id: wordbookId, session_date: date, status: 'in_progress', started_at: new Date().toISOString(), completed_at: null, current_stage: 1, current_index: 0, round, word_ids: plan.word_ids, review_ids: plan.review }
   await db.learningSessions.put(s)
   return s
+}
+
+// 오늘 세션 가져오기: 진행 중인 회차 → 없으면 마지막 회차(끝난 것) → 오늘 처음이면 1회차를 새로 만듦
+export async function getOrCreateSession(db: VocabularyDB, wordbookId = currentWordbookId()): Promise<LearningSession> {
+  const st = await getTodayState(db, wordbookId)
+  const date = today()
+  if (st.last) {
+    const s = st.last
+    if (!s.word_ids) { const f = { ...s, round: 1, word_ids: await legacyWordIds(db, wordbookId, date), review_ids: [] }; await db.learningSessions.put(f); return f }
+    return s
+  }
+  return createRound(db, wordbookId, 1, [])
+}
+
+// 다음 회차 시작(앞 회차가 끝났고 하루 최대 횟수 전일 때만)
+export async function startNextRound(db: VocabularyDB, wordbookId = currentWordbookId()): Promise<LearningSession | null> {
+  const st = await getTodayState(db, wordbookId)
+  if (!st.canStartNext) return null
+  return createRound(db, wordbookId, st.rounds.length + 1, st.rounds.flatMap(r => r.word_ids ?? []))
 }
 
 // 세션에 저장된 단어 목록 → 단어+뜻

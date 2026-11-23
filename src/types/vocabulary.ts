@@ -56,6 +56,7 @@ export interface LearningSession {
   current_stage: number;
   current_index: number;
   // 6단계 추가(색인 없는 칸이라 DB 버전은 그대로)
+  round?: number;           // 오늘 몇 번째 학습(1·2회차, 없으면 1)
   word_ids?: string[];      // 오늘 카드 순서(복습+새 단어 섞음) – 하루 동안 고정
   review_ids?: string[];    // 그중 복습 단어
   summary?: SessionSummary; // 학습을 마칠 때 저장하는 날짜별 결과
