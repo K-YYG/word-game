@@ -219,5 +219,13 @@ export async function getSessionResult(db: VocabularyDB, session: LearningSessio
     firstTry: s2Words.length - wrong2.length,
     wrong2: wrong2.length, x3: x3.length, wrong4: wrong4.length,
     weakWords: x3.map(name).filter((w): w is GameWord => !!w),
+    // 2·3·4단계에서 틀린 단어를 한 목록으로(많이 틀린 순)
+    wrongWords: uniq([...wrong2, ...x3, ...wrong4]).map(id => ({
+      w: name(id),
+      s2: s2.filter(a => a.word_id === id && !a.is_correct).length,
+      x3: s3.some(a => a.word_id === id && !a.is_correct),
+      s4: s4.filter(a => a.word_id === id && !a.is_correct).length,
+    })).filter((x): x is { w: GameWord; s2: number; x3: boolean; s4: number } => !!x.w)
+      .sort((a, b) => (b.s2 + (b.x3 ? 1 : 0) + b.s4) - (a.s2 + (a.x3 ? 1 : 0) + a.s4)),
   }
 }
