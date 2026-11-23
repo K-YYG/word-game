@@ -1,0 +1,32 @@
+{
+ "version": "2026-11-23",
+ "books": [
+  {
+   "id": "B0001",
+   "name": "초등 영단어",
+   "category": "초등",
+   "file": "data/wb-elementary.json",
+   "words": 900,
+   "version": "2.0",
+   "description": "초등 어휘 통합 DB(원본 단어장 4개, 2026-11-22) 전체. 발음기호·예문은 원본에 없어 빈칸"
+  },
+  {
+   "id": "B0002",
+   "name": "중등 영단어",
+   "category": "중등",
+   "file": "data/wb-middle.json",
+   "words": 3343,
+   "version": "1.0",
+   "description": "중등 어휘 통합 DB(원본 50개, 2026-11-23). 초등에 있는 단어는 뺌. 발음기호·예문은 원본에 없어 빈칸"
+  },
+  {
+   "id": "B0003",
+   "name": "고등 영단어",
+   "category": "고등",
+   "file": "data/wb-high.json",
+   "words": 13316,
+   "version": "1.0",
+   "description": "고등 어휘 통합 DB(원본 82개, 2026-11-23). 초등·중등에 있는 단어는 뺌. 발음기호·예문은 원본에 없어 빈칸"
+  }
+ ]
+}
