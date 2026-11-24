@@ -2,6 +2,9 @@ import type { VocabularyDB } from './database';
 import type { VocabularyFile } from '../types/vocabulary';
 import { validateVocabulary } from './validate';
 
+// 단어장 준비 진행 알림(0~100, 지금 하는 일)
+export type Progress = (pct: number, label: string) => void
+
 export type SeedResult =
   | { ok: true; installed: boolean; words: number }
   | { ok: false; message: string; details: string[] };
@@ -31,7 +34,8 @@ export function expandWordbook(data: unknown): unknown {
 // 단어장 파일 하나를 기기에 넣는다.
 // - 이미 같은 버전이 있으면 아무것도 바꾸지 않음
 // - 버전이 다르면 그 단어장의 단어·뜻·목록만 바꿈(학습 기록은 그대로 – 단어 ID가 같으면 진도도 이어짐)
-export async function installWordbook(db: VocabularyDB, raw: unknown): Promise<SeedResult> {
+export async function installWordbook(db: VocabularyDB, raw: unknown, onProgress?: Progress): Promise<SeedResult> {
+  onProgress?.(45, '단어 정리 중');
   const data = expandWordbook(raw);
   const errors = validateVocabulary(data);
   if (errors.length) return { ok: false, message: '단어 데이터에 문제가 있어 설치하지 않았습니다.', details: errors.slice(0, 20) };
@@ -48,9 +52,19 @@ export async function installWordbook(db: VocabularyDB, raw: unknown): Promise<S
         const oldIds = (await db.wordbookItems.where('wordbook_id').equals(book.id).toArray()).map(i => i.word_id);
         await db.wordbookItems.where('wordbook_id').equals(book.id).delete();
         await db.wordMeanings.where('word_id').anyOf([...new Set([...ids, ...oldIds])]).delete();
-        await db.words.bulkPut(v.words.filter(w => ids.has(w.id)));
-        await db.wordMeanings.bulkPut(v.word_meanings.filter(m => ids.has(m.word_id)));
-        await db.wordbookItems.bulkPut(items);
+        // 새 버전에서 빠진 단어는 단어 표에서도 지움(진행 중인 학습에 나오지 않게)
+        await db.words.bulkDelete(oldIds.filter(id => !ids.has(id)));
+        // 나눠서 저장하며 진행률 알림(50% → 98%)
+        const jobs: [typeof db.words | typeof db.wordMeanings | typeof db.wordbookItems, unknown[]][] = [
+          [db.words, v.words.filter(w => ids.has(w.id))], [db.wordMeanings, v.word_meanings.filter(m => ids.has(m.word_id))], [db.wordbookItems, items]]
+        const total = jobs.reduce((n, [, a]) => n + a.length, 0) || 1
+        let done = 0
+        for (const [table, rows] of jobs) for (let i = 0; i < rows.length; i += 2000) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (table as any).bulkPut(rows.slice(i, i + 2000))
+          done += Math.min(2000, rows.length - i)
+          onProgress?.(50 + Math.round(done / total * 48), '기기에 저장 중')
+        }
         await db.wordbooks.put(book);
         changed = true;
       }
@@ -73,19 +87,27 @@ export async function loadIndex(): Promise<BookInfo[]> {
 }
 
 // 고른 단어장이 기기에 없거나 예전 버전이면 받아서 넣는다(인터넷이 없어도 미리 저장된 파일 사용)
-export async function ensureWordbook(db: VocabularyDB, info: BookInfo): Promise<SeedResult> {
+export async function ensureWordbook(db: VocabularyDB, info: BookInfo, onProgress?: Progress): Promise<SeedResult> {
   const have = await db.wordbooks.get(info.id).catch(() => undefined);
   if (have && have.version === info.version) return { ok: true, installed: false, words: info.words };
   let data: unknown;
   try {
+    onProgress?.(3, '단어장 받는 중');
     const res = await fetch(`${BASE}${info.file}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    data = await res.json();
+    // 받는 양을 보며 진행률(3% → 40%)
+    const size = Number(res.headers.get('content-length')) || 0;
+    if (res.body && size && onProgress) {
+      const reader = res.body.getReader(); const parts: Uint8Array[] = []; let got = 0;
+      for (;;) { const { done, value } = await reader.read(); if (done) break; parts.push(value); got += value.length; onProgress(3 + Math.round(Math.min(got / size, 1) * 37), '단어장 받는 중') }
+      const all = new Uint8Array(got); let o = 0; for (const p of parts) { all.set(p, o); o += p.length }
+      data = JSON.parse(new TextDecoder().decode(all));
+    } else data = await res.json();
   } catch (e) {
     if (have) return { ok: true, installed: false, words: info.words };
     return { ok: false, message: `단어장 파일(${info.file})을 읽지 못했습니다.`, details: [String(e)] };
   }
-  return installWordbook(db, data);
+  return installWordbook(db, data, onProgress);
 }
 
 // 예문 파일(ex-1): e = { 단어ID: [영어 문장, 한국어 해석, 'M'(자료 문장) | 'A'(AI 생성)] }

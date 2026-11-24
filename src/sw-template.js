@@ -3,8 +3,9 @@ const CACHE = 'word-game-__VERSION__'
 const FILES = __FILES__
 
 // 설치: 앱 파일 전부를 미리 저장
+// cache: 'reload' = 브라우저에 잠깐 남아 있는 옛 파일(웹 서버가 10분 보관)을 쓰지 않고 항상 새로 받음
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)))
+  event.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))))
 })
 
 // 새 버전 적용: 화면의 [새로고침] 버튼을 누르면 바로 교체

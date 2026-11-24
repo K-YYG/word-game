@@ -20,10 +20,12 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
   const [books, setBooks] = useState<BookInfo[]>([])
   const [bookId, setBookId] = useState(currentWordbookId())
   const [loading, setLoading] = useState(true)
+  const [prep, setPrep] = useState<{ pct: number; label: string } | null>(null)
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let alive = true
-    setLoading(true); setStats(null); setError(null); setPlan(null); setSample([]); setHistory([])
+    setLoading(true); setStats(null); setError(null); setPlan(null); setSample([]); setHistory([]); setPrep(null)
     ;(async () => {
       let idx: BookInfo[]
       try { idx = await loadIndex() } catch (e) { if (alive) setError({ message: '단어장 목록을 읽지 못했습니다.', details: [String(e)] }); return }
@@ -31,8 +33,9 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
       setBooks(idx)
       const info = idx.find(b => b.id === bookId) ?? idx[0]
       if (info.id !== bookId) { setCurrentWordbookId(info.id); setBookId(info.id); return }
-      const r = await ensureWordbook(db, info)
+      const r = await ensureWordbook(db, info, (pct, label) => { if (alive) setPrep({ pct, label }) })
       if (!alive) return
+      setPrep(null)
       if (!r.ok) { setError(r); return }
       setStats(await getHomeStats(db))
       const first = (await db.wordbookItems.where('wordbook_id').equals(info.id).sortBy('sort_order')).slice(0, 3).map(i => i.word_id)
@@ -49,7 +52,7 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
       setLoading(false)
     })()
     return () => { alive = false }
-  }, [bookId])
+  }, [bookId, retry])
 
   function choose(id: string) {
     if (id === bookId || loading) return
@@ -61,7 +64,7 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
       <header className="text-center">
         <h1><Logo /><span className="sr-only">VOCA CAT</span></h1>
         <p className="mt-2 text-slate-500">
-          {stats ? `${stats.wordbookName} · ${stats.totalWords}단어` : error ? '' : '단어장을 준비하고 있어요… (처음 고를 때만 몇 초 걸려요)'}
+          {stats ? `${stats.wordbookName} · ${stats.totalWords}단어` : error ? '' : '단어장을 준비하고 있어요…'}
         </p>
       </header>
 
@@ -82,6 +85,15 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
         <div role="alert" className="rounded-2xl bg-red-50 p-4 text-sm text-red-700 ring-1 ring-red-200">
           <p className="font-bold">{error.message}</p>
           <ul className="mt-2 list-disc pl-5">{error.details.map((d, i) => <li key={i}>{d}</li>)}</ul>
+          <button onClick={() => setRetry(n => n + 1)} data-testid="retry" className="mt-3 rounded-xl bg-red-600 px-4 py-2 font-bold text-white">다시 시도</button>
+        </div>
+      )}
+
+      {prep && !error && (
+        <div role="status" data-testid="preparing" className="rounded-2xl bg-amber-50 p-4 text-center ring-1 ring-amber-200">
+          <p className="text-lg font-bold text-amber-800">📚 {books.find(b => b.id === bookId)?.category ?? ''} 단어장 준비 중… {prep.pct}%</p>
+          <p className="mt-1 text-sm text-amber-700">{prep.label} · 처음 한 번만 10~20초 걸려요. 잠시만 기다려 주세요</p>
+          <div className="mt-3 h-3 overflow-hidden rounded-full bg-amber-100"><div className="h-full rounded-full bg-amber-500 transition-all" style={{ width: `${prep.pct}%` }} /></div>
         </div>
       )}
 

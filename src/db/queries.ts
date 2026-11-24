@@ -50,7 +50,8 @@ export async function getWordsByIds(db: VocabularyDB, ids: string[]): Promise<{ 
   const meanings = await db.wordMeanings.where('word_id').anyOf(ids).toArray();
   const by = new Map<string, WordMeaning[]>();
   for (const m of meanings) { const a = by.get(m.word_id); if (a) a.push(m); else by.set(m.word_id, [m]); }
-  return words.filter((w): w is Word => !!w).map(w => ({
+  // 뜻이 없는 단어(예전 버전에서 빠진 단어 등)는 게임에 쓸 수 없으므로 뺌
+  return words.filter((w): w is Word => !!w && by.has(w.id)).map(w => ({
     word: w,
     meanings: (by.get(w.id) ?? []).sort((a, b) => a.meaning_order - b.meaning_order),
   }));
