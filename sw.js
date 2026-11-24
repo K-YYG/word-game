@@ -1,9 +1,9 @@
 // 영단어 암기 게임 – 오프라인용 서비스 워커 (빌드할 때 vite.config.ts가 sw.js로 만듦)
-const CACHE = 'word-game-fa476df31bd2'
+const CACHE = 'word-game-4d92f58b1df0'
 const FILES = [
   "./",
-  "./assets/index-CsqKuiIp.js",
-  "./assets/index-tjUCaluY.css",
+  "./assets/index-Bn3BTi4q.css",
+  "./assets/index-rj61t3ve.js",
   "./data/examples-elementary.json",
   "./data/examples-high.json",
   "./data/examples-middle.json",
@@ -33,8 +33,9 @@ const FILES = [
 ]
 
 // 설치: 앱 파일 전부를 미리 저장
+// cache: 'reload' = 브라우저에 잠깐 남아 있는 옛 파일(웹 서버가 10분 보관)을 쓰지 않고 항상 새로 받음
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)))
+  event.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: 'reload' })))))
 })
 
 // 새 버전 적용: 화면의 [새로고침] 버튼을 누르면 바로 교체
