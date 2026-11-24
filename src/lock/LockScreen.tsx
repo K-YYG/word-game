@@ -40,7 +40,7 @@ export default function LockScreen({ children }: { children: ReactNode }) {
   function submit(e: FormEvent) {
     e.preventDefault()
     if (checkPassword(pw)) { try { localStorage.setItem(KEY, HASH) } catch { /* 기억 못 하면 다음에 다시 물음 */ } setOk(true) }
-    else { setErr(true); setPw('') }
+    else { setErr(true) }
   }
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col items-center justify-center gap-4 bg-slate-50 px-6" data-testid="lock">
@@ -48,10 +48,11 @@ export default function LockScreen({ children }: { children: ReactNode }) {
       <h1 className="text-2xl font-extrabold text-indigo-600">영단어 암기 게임</h1>
       <p className="text-sm text-slate-500">처음 한 번만 암호를 입력해 주세요</p>
       <form onSubmit={submit} className="flex w-full flex-col gap-3">
-        <input data-testid="lock-input" type="password" value={pw} autoFocus onChange={e => { setPw(e.target.value); setErr(false) }}
+        <input data-testid="lock-input" type="text" value={pw} autoFocus autoComplete="off" autoCapitalize="off" spellCheck={false} onChange={e => { setPw(e.target.value); setErr(false) }}
           placeholder="암호" aria-label="암호"
           className="w-full rounded-xl bg-white px-4 py-3 text-center text-lg ring-1 ring-slate-300 outline-none focus:ring-2 focus:ring-indigo-500" />
-        {err && <p role="alert" className="text-center text-sm text-rose-500">암호가 맞지 않아요</p>}
+        <p className="text-center text-xs text-slate-400">한글로 입력하세요</p>
+        {err && <p role="alert" className="text-center text-sm text-rose-500">암호가 맞지 않아요 (입력한 글자를 확인해 주세요)</p>}
         <button type="submit" className="rounded-xl bg-indigo-600 py-3 font-bold text-white">들어가기</button>
       </form>
     </main>
