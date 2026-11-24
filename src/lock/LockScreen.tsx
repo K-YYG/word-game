@@ -1,3 +1,4 @@
+import { Logo } from '../components/Cats'
 import { useState, type FormEvent, type ReactNode } from 'react'
 
 // 앱 잠금(사용자 결정 11-23 22:34 "가": 기기마다 처음 한 번만 암호 입력)
@@ -45,7 +46,7 @@ export default function LockScreen({ children }: { children: ReactNode }) {
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col items-center justify-center gap-4 bg-slate-50 px-6" data-testid="lock">
       <p className="text-5xl">🔒</p>
-      <h1 className="text-2xl font-extrabold text-indigo-600">영단어 암기 게임</h1>
+      <h1 className="w-full"><Logo /><span className="sr-only">VOCA CAT</span></h1>
       <p className="text-sm text-slate-500">처음 한 번만 암호를 입력해 주세요</p>
       <form onSubmit={submit} className="flex w-full flex-col gap-3">
         <input data-testid="lock-input" type="text" value={pw} autoFocus autoComplete="off" autoCapitalize="off" spellCheck={false} onChange={e => { setPw(e.target.value); setErr(false) }}

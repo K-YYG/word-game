@@ -1,3 +1,4 @@
+import { StageCat } from '../components/Cats'
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion'
 import { db } from '../db/database'
@@ -53,10 +54,10 @@ export default function Stage1Sort({ onHome, onNextStage }: { onHome: () => void
       <button
         type="button" data-testid="trash"
         onClick={() => setShowTrash(v => !v)}
-        className={`mt-4 flex h-24 flex-col items-center justify-center rounded-3xl border-2 border-dashed transition-colors ${overTrash ? 'border-rose-500 bg-rose-100 text-rose-600' : 'border-slate-300 bg-white text-slate-400'}`}
+        className={`mt-4 flex min-h-24 items-center justify-center gap-3 rounded-3xl border-2 border-dashed px-3 py-1 transition-colors ${overTrash ? 'border-rose-500 bg-rose-100 text-rose-600' : 'border-slate-300 bg-white text-slate-400'}`}
       >
-        <span className="text-3xl">🗑️</span>
-        <span className="text-sm">아는 단어는 위로 던지세요 · 휴지통 {trash.length}개 (눌러서 보기)</span>
+        <span className={`transition-transform ${overTrash ? 'scale-125' : ''}`}><StageCat stage={1} /></span>
+        <span className="text-sm">아는 단어는 위로 던지세요<br />고양이가 먹어요 · {trash.length}개 (눌러서 보기)</span>
       </button>
 
       {showTrash && (

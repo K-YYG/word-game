@@ -1,7 +1,7 @@
 {
-  "name": "영단어 암기 게임",
-  "short_name": "영단어게임",
-  "description": "초등 기본 영단어 100 – 솎아내기·연결·O/X·취약 단어 4단계 암기 게임",
+  "name": "VOCA CAT 영단어 암기 게임",
+  "short_name": "VOCA CAT",
+  "description": "초등·중등·고등 영단어 – 솎아내기·연결·O/X·취약 단어 4단계 암기 게임",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",

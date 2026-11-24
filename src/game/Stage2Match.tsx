@@ -1,3 +1,4 @@
+import { StageCat } from '../components/Cats'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { db } from '../db/database'
@@ -105,8 +106,13 @@ export default function Stage2Match({ session: s0, stage, title, wrongNote, load
         <span className="text-sm font-semibold text-slate-500">{title}</span>
         <span className="w-14 text-right text-sm text-slate-400" data-testid="progress">{matched.size}/{total}</span>
       </div>
-      <p className="mt-3 text-center text-sm text-slate-500">영어 단어를 누른 뒤 뜻을 누르거나, 끌어서 뜻에 이어 주세요</p>
-      <p className="text-center text-xs text-rose-400">틀린 단어 {wrongIds.size}개{wrongNote}</p>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="flex-1">
+          <p className="text-center text-sm text-slate-500">영어 단어를 누른 뒤 뜻을 누르거나, 끌어서 뜻에 이어 주세요</p>
+          <p className="text-center text-xs text-rose-400">틀린 단어 {wrongIds.size}개{wrongNote}</p>
+        </div>
+        <StageCat stage={stage} />
+      </div>
 
       <div ref={boardRef} className="relative mt-4 grid flex-1 grid-cols-2 content-start gap-x-6 gap-y-3 touch-none"
         onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerLeave={() => { dragFrom.current = null; setLine(null) }}>

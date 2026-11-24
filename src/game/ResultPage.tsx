@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
 import { db } from '../db/database'
 import type { LearningSession } from '../types/vocabulary'
 import { getSessionResult, MAX_ROUNDS_PER_DAY } from './session'
 import { loadExamples, type Example } from '../db/seed'
 import { isPC } from '../db/profile'
+import { ResultCat } from '../components/Cats'
 
 const SHOW_EXAMPLES = isPC()
 
@@ -28,7 +28,7 @@ export default function ResultPage({ session, onHome, onNextRound }: { session: 
   ]
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col bg-slate-50 px-5 py-8" data-testid="result">
-      <motion.p initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center text-5xl">🎉</motion.p>
+      <ResultCat wrong={r.wrongWords.length} />
       <h1 className="mt-2 text-center text-2xl font-bold text-slate-800">{round}회차 학습 완료!</h1>
       <p className="text-center text-sm text-slate-400">{session.session_date} · 하루 {MAX_ROUNDS_PER_DAY}회 중 {round}회</p>
       <dl className="mt-6 divide-y divide-slate-100 rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">

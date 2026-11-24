@@ -1,3 +1,4 @@
+import { StageCat } from '../components/Cats'
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { db } from '../db/database'
@@ -63,8 +64,13 @@ export default function Stage3OX({ session: s0, onHome, onDone }: { session: Lea
         <span className="text-sm font-semibold text-slate-500">3단계 · O/X 확인</span>
         <span className="w-14 text-right text-sm text-slate-400" data-testid="progress">{done.size}/{words.length}</span>
       </div>
-      <p className="mt-3 text-center text-sm text-slate-500">뜻을 떠올려 본 뒤, 맞았으면 O · 몰랐으면 X</p>
-      <p className="text-center text-xs text-rose-400">X {xCount}개 → 4단계에서 다시 연결해요</p>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="flex-1">
+          <p className="text-center text-sm text-slate-500">뜻을 떠올려 본 뒤, 맞았으면 O · 몰랐으면 X</p>
+          <p className="text-center text-xs text-rose-400">X {xCount}개 → 4단계에서 다시 연결해요</p>
+        </div>
+        <StageCat stage={3} />
+      </div>
 
       <div className="flex flex-1 items-center justify-center py-8">
           <motion.div key={current.word.id} data-testid="ox-card"

@@ -6,6 +6,7 @@ import { currentWordbookId, getHomeStats, getWordsByIds, setCurrentWordbookId, t
 import { getHistory, getTodayState, MAX_ROUNDS_PER_DAY, planToday, startNextRound, WORDS_PER_ROUND } from '../game/session'
 import type { LearningSession } from '../types/vocabulary'
 import { InstallButton } from '../pwa/PwaBar'
+import { GrassScene, Logo } from '../components/Cats'
 
 // 홈 화면: 처음 켤 때 기본 단어를 설치하고 학습 현황을 보여 준다
 export default function HomePage({ onStart }: { onStart: () => void }) {
@@ -58,7 +59,7 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
   return (
     <main className="mx-auto flex min-h-full max-w-md flex-col gap-6 bg-slate-50 px-5 py-10">
       <header className="text-center">
-        <h1 className="text-3xl font-extrabold text-indigo-600">영단어 암기 게임</h1>
+        <h1><Logo /><span className="sr-only">VOCA CAT</span></h1>
         <p className="mt-2 text-slate-500">
           {stats ? `${stats.wordbookName} · ${stats.totalWords}단어` : error ? '' : '단어장을 준비하고 있어요… (처음 고를 때만 몇 초 걸려요)'}
         </p>
@@ -117,11 +118,13 @@ export default function HomePage({ onStart }: { onStart: () => void }) {
         <p className="text-center text-sm text-slate-400">예: {sample.join(' · ')}</p>
       )}
 
+      <div className="mt-auto -mx-5"><GrassScene /></div>
+
       <button
         type="button"
         disabled={!stats || loading}
         onClick={async () => { if (resume === 'next') await startNextRound(db, bookId); onStart() }}
-        className="mt-auto rounded-2xl bg-indigo-600 py-5 text-xl font-bold text-white shadow-lg active:scale-95 disabled:opacity-40"
+        className="-mt-4 rounded-2xl bg-indigo-600 py-5 text-xl font-bold text-white shadow-lg active:scale-95 disabled:opacity-40"
       >
         {resume === 'resume' ? `이어서 학습 (${round}회차)` : resume === 'next' ? `${round}회차 시작` : resume === 'done' ? '오늘 학습 끝 · 결과 보기' : '학습 시작'}
       </button>
